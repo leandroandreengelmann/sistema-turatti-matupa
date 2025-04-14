@@ -61,13 +61,13 @@ export default function RecuperarSenhaPage() {
         
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-gray-800 mb-2 font-inter">Recuperação de Senha</h1>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2 font-inter">Recuperação de Senha</h1>
             {!emailEnviado ? (
-              <p className="text-gray-600 font-inter">
+              <p className="text-lg text-gray-600 font-inter">
                 Informe seu e-mail para receber um link de recuperação de senha
               </p>
             ) : (
-              <p className="text-gray-600 font-inter">
+              <p className="text-lg text-gray-600 font-inter">
                 Um email foi enviado para <strong>{email}</strong> com instruções para redefinir sua senha.
               </p>
             )}
@@ -76,13 +76,13 @@ export default function RecuperarSenhaPage() {
           {!emailEnviado ? (
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
-                <label htmlFor="email" className="block text-gray-700 text-sm font-medium mb-2 font-inter">
+                <label htmlFor="email" className="block text-gray-700 text-lg font-medium mb-2 font-inter">
                   Seu e-mail
                 </label>
                 <input
                   id="email"
                   type="email"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-inter"
+                  className="w-full h-[47px] px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 transition-colors font-inter"
                   placeholder="nome@exemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -106,10 +106,10 @@ export default function RecuperarSenhaPage() {
           ) : (
             <div className="text-center">
               <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-green-800 font-inter">
+                <p className="text-lg text-green-800 font-inter">
                   Verifique sua caixa de entrada e siga as instruções enviadas para redefinir sua senha.
                 </p>
-                <p className="text-xs text-gray-600 mt-2 font-inter">
+                <p className="text-lg text-gray-600 mt-2 font-inter">
                   Nota: Esta é uma demonstração sem banco de dados. Nenhum e-mail será enviado.
                 </p>
               </div>
@@ -124,7 +124,7 @@ export default function RecuperarSenhaPage() {
           )}
           
           <div className="mt-6 text-center">
-            <Link href="/" className="text-blue-700 hover:text-blue-900 text-sm font-inter">
+            <Link href="/" className="text-blue-700 hover:text-blue-900 text-lg font-inter">
               Voltar para a página inicial
             </Link>
           </div>

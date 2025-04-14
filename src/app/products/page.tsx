@@ -2,8 +2,55 @@
 
 import { useState, useEffect } from 'react';
 import { Product } from '@/data/types';
-import { productService } from '@/services/localDataService';
+import { productService } from '@/services/productService';
 import ProductsGrid from '@/components/ProductsGrid';
+
+// Função para normalizar produtos em promoção
+function normalizePromotionProduct(product: Product) {
+  // Se já tiver campos de promoção definidos e originalprice for maior que price,
+  // assumimos que os valores já estão corretos
+  if (
+    product.ispromotion && 
+    product.originalprice && 
+    product.originalprice > product.price
+  ) {
+    // Apenas garantir que temos as propriedades em camelCase também
+    return {
+      ...product,
+      isPromotion: true,
+      promoPrice: product.price,
+      // Calcular o desconto com base nos preços atuais
+      discountPercentage: Math.round(
+        ((product.originalprice - product.price) / product.originalprice) * 100
+      )
+    };
+  }
+  
+  // Caso esteja marcado como promoção mas não tenha os preços configurados corretamente
+  if (product.ispromotion || product.ismonthpromotion) {
+    // Guardar o preço original
+    const originalPrice = product.originalprice || product.price;
+    
+    // Calcular preço promocional (20% de desconto como padrão)
+    // A menos que já tenha sido especificado um desconto
+    const discountPercentage = product.discountPercentage || 20;
+    const discountMultiplier = (100 - discountPercentage) / 100;
+    const promoPrice = Math.round(originalPrice * discountMultiplier);
+    
+    return {
+      ...product,
+      isPromotion: true,
+      ispromotion: true,
+      price: originalPrice,
+      promoPrice: promoPrice,
+      originalprice: originalPrice,
+      discountPercentage: discountPercentage
+    };
+  }
+  
+  // Se não for promoção, apenas retornar o produto como está
+  return product;
+}
 
 export default function ProductsPage({
   searchParams,
@@ -28,7 +75,15 @@ export default function ProductsPage({
           fetchedProducts = await productService.getAll();
         }
         
-        setProducts(fetchedProducts);
+        // Processar produtos para normalizar dados de promoção
+        const processedProducts = fetchedProducts.map(product => {
+          if (product.ispromotion) {
+            return normalizePromotionProduct(product);
+          }
+          return product;
+        });
+        
+        setProducts(processedProducts);
       } catch (error) {
         console.error("Erro ao buscar produtos:", error);
         setProducts([]);

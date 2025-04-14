@@ -22,26 +22,24 @@ export default function ClientLayout({
     
     // Função para limpar atributos que causam incompatibilidade de hidratação
     const cleanupHydrationAttributes = () => {
-      const htmlElement = document.documentElement;
-      
-      // Lista de atributos que podem causar problemas de hidratação
-      const problematicAttributes = ['tracking', 'data-new-gr-c-s-check-loaded', 'data-gr-ext-installed'];
-      
-      // Remover todos os atributos problemáticos
-      problematicAttributes.forEach(attr => {
-        if (htmlElement.hasAttribute(attr)) {
-          console.log(`Removendo atributo conflitante: ${attr}`);
-          htmlElement.removeAttribute(attr);
+      try {
+        const htmlElement = document.documentElement;
+        
+        // Remover todos os atributos problemáticos silenciosamente
+        if (htmlElement.hasAttribute('tracking')) htmlElement.removeAttribute('tracking');
+        if (htmlElement.hasAttribute('data-new-gr-c-s-check-loaded')) htmlElement.removeAttribute('data-new-gr-c-s-check-loaded');
+        if (htmlElement.hasAttribute('data-gr-ext-installed')) htmlElement.removeAttribute('data-gr-ext-installed');
+        
+        // Adicionar atributo indicando que a hidratação foi concluída
+        htmlElement.setAttribute('data-hydrated', 'true');
+        
+        // Remover classe vsc-initialized que o VSCode adiciona
+        const bodyElement = document.body;
+        if (bodyElement.classList.contains('vsc-initialized')) {
+          bodyElement.classList.remove('vsc-initialized');
         }
-      });
-      
-      // Adicionar atributo indicando que a hidratação foi concluída
-      htmlElement.setAttribute('data-hydrated', 'true');
-      
-      // Remover classe vsc-initialized que o VSCode adiciona
-      const bodyElement = document.body;
-      if (bodyElement.classList.contains('vsc-initialized')) {
-        bodyElement.classList.remove('vsc-initialized');
+      } catch (error) {
+        // Ignorar erros silenciosamente
       }
     };
     
@@ -57,7 +55,7 @@ export default function ClientLayout({
   return (
     <>
       {!isAdminPage && <Header />}
-      <main className={`flex-grow ${!isAdminPage ? 'pt-16 sm:pt-16 md:pt-16' : ''}`}>
+      <main className={`flex-grow ${!isAdminPage ? 'pt-24 sm:pt-24 md:pt-24' : ''}`}>
         {children}
       </main>
       {!isAdminPage && <Footer />}

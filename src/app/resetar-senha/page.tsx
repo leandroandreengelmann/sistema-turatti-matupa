@@ -136,43 +136,43 @@ export default function ResetarSenhaPage() {
           ) : (
             <>
               <div className="text-center mb-6">
-                <h1 className="text-xl font-bold text-gray-800 mb-2 font-inter">Redefinir Senha</h1>
-                <p className="text-gray-600 font-inter">
+                <h1 className="text-2xl font-bold text-gray-800 mb-2 font-inter">Redefinir Senha</h1>
+                <p className="text-lg text-gray-600 font-inter">
                   Digite sua nova senha abaixo
                 </p>
-                <p className="text-xs text-gray-500 mt-2 font-inter">
+                <p className="text-lg text-gray-500 mt-2 font-inter">
                   Nota: Esta é uma demonstração sem banco de dados.
                 </p>
               </div>
               
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <label htmlFor="senha" className="block text-gray-700 text-sm font-medium mb-2 font-inter">
+                  <label htmlFor="senha" className="block text-gray-700 text-lg font-medium mb-2 font-inter">
                     Nova Senha
                   </label>
                   <input
                     id="senha"
                     type="password"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-inter"
+                    className="w-full h-[47px] px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 transition-colors font-inter"
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
                     disabled={isLoading}
                     required
                     minLength={8}
                   />
-                  <p className="text-xs text-gray-500 mt-1 font-inter">
+                  <p className="text-lg text-gray-500 mt-1 font-inter">
                     Mínimo de 8 caracteres
                   </p>
                 </div>
                 
                 <div className="mb-6">
-                  <label htmlFor="confirmarSenha" className="block text-gray-700 text-sm font-medium mb-2 font-inter">
+                  <label htmlFor="confirmarSenha" className="block text-gray-700 text-lg font-medium mb-2 font-inter">
                     Confirmar Nova Senha
                   </label>
                   <input
                     id="confirmarSenha"
                     type="password"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-inter"
+                    className="w-full h-[47px] px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 transition-colors font-inter"
                     value={confirmarSenha}
                     onChange={(e) => setConfirmarSenha(e.target.value)}
                     disabled={isLoading}
@@ -183,7 +183,7 @@ export default function ResetarSenhaPage() {
                 <div className="mb-6">
                   <button
                     type="submit"
-                    className={`w-full py-2 px-4 bg-blue-700 hover:bg-blue-800 text-white font-medium rounded-md transition duration-300 font-inter ${
+                    className={`w-full py-2 px-4 bg-blue-700 hover:bg-blue-800 text-white font-medium rounded-md transition duration-300 font-inter text-lg ${
                       isLoading ? 'opacity-70 cursor-not-allowed' : ''
                     }`}
                     disabled={isLoading}
@@ -196,7 +196,7 @@ export default function ResetarSenhaPage() {
           )}
           
           <div className="mt-6 text-center">
-            <Link href="/" className="text-blue-700 hover:text-blue-900 text-sm font-inter">
+            <Link href="/" className="text-blue-700 hover:text-blue-900 text-lg font-inter">
               Voltar para a página inicial
             </Link>
           </div>

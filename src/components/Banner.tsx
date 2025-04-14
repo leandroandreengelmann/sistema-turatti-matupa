@@ -1,66 +1,67 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { Banner as BannerType } from '@/data/types';
-import { bannerService } from '@/services/localDataService';
+import BannerCarousel from './BannerCarousel';
 
 interface BannerProps {
-  banner?: BannerType;
+  banners?: BannerType[];
+  height?: number;
 }
 
-export default function Banner({ banner }: BannerProps) {
-  const [currentBanner, setCurrentBanner] = useState<BannerType | null>(null);
-  const [isLoading, setIsLoading] = useState(!banner);
-  const [error, setError] = useState<string | null>(null);
+export default function Banner({ banners = [], height = 420 }: BannerProps) {
+  const [loadedBanners, setLoadedBanners] = useState<BannerType[]>([]);
+  const [isLoading, setIsLoading] = useState(banners.length === 0);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    // Se o banner já foi fornecido via props, não precisamos buscá-lo
-    if (banner) {
-      setCurrentBanner(banner);
-      setIsLoading(false);
-      return;
-    }
-
-    // Caso contrário, buscar do serviço local
-    async function fetchBanner() {
+    // Se os banners já foram fornecidos via props, verificamos e filtramos os inválidos
+    if (banners.length > 0) {
       try {
-        setIsLoading(true);
-        setError(null);
+        // Processar os banners para garantir URLs válidas
+        const processedBanners = banners
+          .filter(banner => banner && banner.imageUrl)
+          .map(banner => {
+            // Normalizar a URL da imagem
+            let imageUrl = banner.imageUrl?.trim() || '';
+            if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+              imageUrl = `https://${imageUrl}`;
+            }
+            
+            return {
+              ...banner,
+              imageUrl
+            };
+          });
         
-        const banners = await bannerService.getActive();
-        
-        if (banners && banners.length > 0) {
-          setCurrentBanner(banners[0]);
+        if (processedBanners.length > 0) {
+          setLoadedBanners(processedBanners);
+          setHasError(false);
         } else {
-          setError('Nenhum banner ativo encontrado');
+          // Se não há banners válidos, considerar como um erro
+          setHasError(true);
         }
-      } catch (err) {
-        console.error('Erro ao buscar banner:', err);
-        setError('Erro ao carregar banner');
+      } catch (error) {
+        console.error('Erro ao processar banners:', error);
+        setHasError(true);
       } finally {
         setIsLoading(false);
       }
     }
-
-    fetchBanner();
-  }, [banner]);
-
-  // Fallback banner quando não há dados
-  const fallbackImageUrl = 'https://picsum.photos/1200/400?grayscale&blur=2';
-
-  // Usar a imagem do banner atual ou a imagem fallback
-  const imageUrl = currentBanner?.imageUrl || fallbackImageUrl;
+    // Caso contrário, eles serão buscados pelo BannerCarousel
+  }, [banners]);
 
   return (
-    <div className="relative w-full h-[300px] md:h-[400px] overflow-hidden">
-      <Image
-        src={imageUrl}
-        alt="Banner"
-        fill
-        priority
-        className="object-cover"
-        sizes="100vw"
+    <div className="w-full overflow-hidden relative">
+      {hasError && (
+        <div className="absolute top-2 right-2 z-20 bg-red-100 text-red-800 text-xs px-2 py-1 rounded shadow-sm">
+          Erro ao carregar banners
+        </div>
+      )}
+      
+      <BannerCarousel
+        banners={loadedBanners.length > 0 ? loadedBanners : undefined}
+        height={height}
       />
     </div>
   );

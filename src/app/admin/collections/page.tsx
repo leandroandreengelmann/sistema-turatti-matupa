@@ -2,39 +2,65 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useToast } from '@/components/ToastProvider';
 import { ColorCollection } from '@/data/types';
+import { useToast } from '@/components/ToastProvider';
 import { colorCollectionService } from '@/services/localDataService';
+import { Plus, Pencil, Trash2, Search, X, FolderOpen } from 'lucide-react';
+import AdminPageLayout from '@/components/AdminPageLayout';
+import AdminFormContainer from '@/components/AdminFormContainer';
+import FormField from '@/components/FormField';
+import AdminTable from '@/components/AdminTable';
+import AdminItemCard from '@/components/AdminItemCard';
 
-export default function AdminCollectionsPage() {
+// Função simulada para buscar coleções
+const fetchCollections = async (): Promise<ColorCollection[]> => {
+  // Simula atraso na rede
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return []; // TODO: Implementar retorno real
+};
+
+export default function CollectionsPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [collectionsList, setCollectionsList] = useState<ColorCollection[]>([]);
+  const [collections, setCollections] = useState<ColorCollection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCollection, setCurrentCollection] = useState<ColorCollection | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   
   // Dados do formulário
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [representativeColor, setRepresentativeColor] = useState('#3b82f6');
-  
+
+  // Carregar coleções
   useEffect(() => {
-    async function init() {
+    const loadData = async () => {
+      setIsLoading(true);
       try {
-        // Carregar coleções de cores
-        const collections = await colorCollectionService.getAll();
-        setCollectionsList(collections);
+        const data = await fetchCollections();
+        setCollections(data);
       } catch (error) {
-        console.error('Erro ao inicializar a página de coleções:', error);
+        console.error("Erro ao carregar coleções:", error);
+        showToast('Erro ao carregar coleções', 'error');
       } finally {
         setIsLoading(false);
       }
+    };
+
+    loadData();
+  }, [showToast]);
+
+  useEffect(() => {
+    if (currentCollection) {
+      setName(currentCollection.name);
+      setDescription(currentCollection.description || '');
+      setRepresentativeColor(currentCollection.representativeColor || '#3b82f6');
     }
-    
-    init();
-  }, []);
+  }, [currentCollection]);
 
   // Adicionar nova coleção
   const handleAddNew = () => {
@@ -48,7 +74,6 @@ export default function AdminCollectionsPage() {
     setCurrentCollection(collection);
     setName(collection.name);
     setDescription(collection.description || '');
-    setRepresentativeColor(collection.representativeColor || '#3b82f6');
     setIsEditing(true);
   };
 
@@ -56,17 +81,13 @@ export default function AdminCollectionsPage() {
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta coleção?')) {
       try {
-        const success = await colorCollectionService.delete(id);
-        
-        if (success) {
-          setCollectionsList(collectionsList.filter(c => c.id !== id));
-          showToast('Coleção excluída com sucesso!', 'success');
-        } else {
-          showToast('Erro ao excluir coleção. Tente novamente.', 'error');
-        }
+        // TODO: Implementar exclusão real
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setCollections(prev => prev.filter(collection => collection.id !== id));
+        showToast('Coleção excluída com sucesso', 'success');
       } catch (error) {
-        console.error('Erro ao excluir coleção:', error);
-        showToast('Ocorreu um erro inesperado. Tente novamente.', 'error');
+        console.error("Erro ao excluir coleção:", error);
+        showToast('Erro ao excluir coleção', 'error');
       }
     }
   };
@@ -76,6 +97,8 @@ export default function AdminCollectionsPage() {
     setName('');
     setDescription('');
     setRepresentativeColor('#3b82f6');
+    setCurrentCollection(null);
+    setErrors({});
   };
 
   // Cancelar edição
@@ -85,77 +108,88 @@ export default function AdminCollectionsPage() {
     resetForm();
   };
 
-  // Submeter formulário
+  // Enviar formulário
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setSubmitting(true);
+
     try {
+      const collectionData = {
+        id: currentCollection?.id || Date.now().toString(),
+        name,
+        description,
+        createdAt: currentCollection?.createdAt || new Date(),
+        updatedAt: new Date()
+      };
+
+      // TODO: Implementar salvamento real
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       if (currentCollection) {
         // Atualizar coleção existente
-        const updates = {
-          name,
-          representativeColor,
-          description,
-        };
-        
-        console.log('Enviando atualização:', updates);
-        
-        const success = await colorCollectionService.update(currentCollection.id, updates);
-        
-        if (success) {
-          // Atualizar a lista local
-          setCollectionsList(collectionsList.map(c => 
-            c.id === currentCollection.id ? { ...c, ...updates } : c
-          ));
-          console.log('Coleção atualizada com sucesso');
-          
-          // Mostrar toast de sucesso
-          showToast(`Coleção "${name}" atualizada com sucesso!`, 'success');
-        } else {
-          // Mostrar toast de erro
-          showToast('Erro ao atualizar coleção. Tente novamente.', 'error');
-        }
+        setCollections(prev => prev.map(collection => 
+          collection.id === currentCollection.id ? { ...collection, ...collectionData } : collection
+        ));
+        showToast('Coleção atualizada com sucesso', 'success');
       } else {
         // Adicionar nova coleção
-        const newCollection = {
-          name,
-          representativeColor,
-          description,
-        };
-        
-        console.log('Enviando nova coleção:', newCollection);
-        
-        const addedCollection = await colorCollectionService.add(newCollection);
-        
-        if (addedCollection) {
-          console.log('Coleção adicionada com sucesso:', addedCollection);
-          setCollectionsList([...collectionsList, addedCollection]);
-          
-          // Mostrar toast de sucesso
-          showToast(`Coleção "${name}" adicionada com sucesso!`, 'success');
-        } else {
-          // Mostrar toast de erro
-          showToast('Erro ao adicionar coleção. Tente novamente.', 'error');
-        }
+        setCollections(prev => [...prev, collectionData]);
+        showToast('Coleção adicionada com sucesso', 'success');
       }
-      
-      setIsEditing(false);
-      setCurrentCollection(null);
-      resetForm();
+
+      handleCancel();
     } catch (error) {
-      console.error('Erro ao salvar coleção:', error);
-      // Mostrar toast de erro
-      showToast('Ocorreu um erro inesperado. Tente novamente.', 'error');
+      console.error("Erro ao salvar coleção:", error);
+      showToast('Erro ao salvar coleção', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
-  
-  // Manipulação do campo representativeColor
-  const handleRepresentativeColorChange = (value: string) => {
-    console.log('Nova cor representativa:', value);
-    setRepresentativeColor(value);
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    
+    if (!name.trim()) {
+      newErrors.name = 'O nome da coleção é obrigatório';
+    }
+    
+    if (name.trim().length < 3) {
+      newErrors.name = 'O nome da coleção deve ter pelo menos 3 caracteres';
+    }
+    
+    if (!representativeColor.match(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)) {
+      newErrors.representativeColor = 'Cor inválida. Use formato hexadecimal (#RRGGBB)';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
+
+  const filteredCollections = collections.filter(collection => 
+    collection.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (collection.description && collection.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
   
-  // Renderização da página
+  // Colunas da tabela
+  const columns = [
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (value: any, collection: ColorCollection) => collection.name
+    },
+    {
+      key: 'description',
+      header: 'Descrição',
+      render: (value: any, collection: ColorCollection) => collection.description || '-'
+    },
+    {
+      key: 'createdAt',
+      header: 'Criado em',
+      render: (value: any, collection: ColorCollection) => 
+        new Date(collection.createdAt).toLocaleDateString('pt-BR')
+    }
+  ];
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
@@ -165,149 +199,130 @@ export default function AdminCollectionsPage() {
   }
   
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <Link href="/admin" className="text-blue-700 hover:underline mb-2 inline-block">
-            &larr; Voltar para o Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-800">Gerenciar Coleções de Cores</h1>
-        </div>
-        
-        {!isEditing && (
-          <button
-            onClick={handleAddNew}
-            className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-md transition duration-300"
-          >
-            Adicionar Nova Coleção
-          </button>
-        )}
-      </div>
-      
-      {isEditing ? (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {currentCollection ? 'Editar Coleção' : 'Nova Coleção'}
-          </h2>
-          
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="name">
-                  Nome da Coleção *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="representativeColor">
-                  Cor Representativa *
-                </label>
-                <div className="flex items-center">
-                  <input
-                    type="color"
-                    id="representativeColor"
-                    value={representativeColor}
-                    onChange={(e) => handleRepresentativeColorChange(e.target.value)}
-                    className="w-12 h-10 border border-gray-300 rounded-md mr-2"
-                  />
-                  <input
-                    type="text"
-                    value={representativeColor}
-                    onChange={(e) => handleRepresentativeColorChange(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="#RRGGBB"
-                    pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-gray-700 mb-2" htmlFor="description">
-                  Descrição *
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+    <AdminPageLayout
+      title={isEditing ? 'Adicionar Nova Coleção' : 'Gerenciar Coleções'}
+      actionButton={{
+        label: isEditing ? 'Voltar' : 'Adicionar Coleção',
+        onClick: isEditing ? handleCancel : handleAddNew,
+        show: true
+      }}
+    >
+      {/* Busca */}
+      {!isEditing && (
+        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
             </div>
-            
-            <div className="flex justify-end space-x-4">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar coleções..."
+              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all"
+            />
+            {searchTerm && (
               <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition duration-300"
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-500"
               >
-                Cancelar
+                <X className="h-4 w-4" />
               </button>
-              
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md transition duration-300"
-              >
-                {currentCollection ? 'Atualizar' : 'Salvar'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {collectionsList.map((collection) => (
-            <div key={collection.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div 
-                className="h-32 w-full" 
-                style={{ backgroundColor: collection.representativeColor || '#CCCCCC' }}
-              />
-              
-              <div className="p-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">{collection.name}</h3>
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{collection.description}</p>
-                
-                <div className="flex justify-between pt-2 mt-2 border-t border-gray-100">
-                  <button
-                    onClick={() => handleEdit(collection)}
-                    className="inline-flex items-center px-3 py-1.5 border border-blue-700 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-100 focus:outline-none"
-                  >
-                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Editar
-                  </button>
-                  
-                  <button
-                    onClick={() => handleDelete(collection.id)}
-                    className="inline-flex items-center px-3 py-1.5 border border-red-600 text-sm font-medium rounded-md text-red-600 bg-white hover:bg-red-50 focus:outline-none"
-                  >
-                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          {collectionsList.length === 0 && (
-            <div className="col-span-full text-center py-8">
-              <p className="text-gray-500">Nenhuma coleção cadastrada.</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
-    </div>
+      
+      {isEditing ? (
+        <AdminFormContainer 
+          title={currentCollection ? 'Editar Coleção' : 'Nova Coleção'}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+        >
+          <div className="grid grid-cols-1 gap-6">
+            <FormField
+              id="name"
+              label="Nome da Coleção"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+
+            <FormField
+              id="description"
+              label="Descrição"
+              type="textarea"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+        </AdminFormContainer>
+      ) : (
+        <>
+          {/* Exibição em tabela para desktop */}
+          <AdminTable
+            data={filteredCollections}
+            columns={columns}
+            emptyText={
+              searchTerm
+                ? "Nenhuma coleção encontrada para esta busca."
+                : "Nenhuma coleção cadastrada."
+            }
+            actions={{
+              onEdit: handleEdit,
+              onDelete: (collection: ColorCollection) => handleDelete(collection.id)
+            }}
+          />
+          
+          {/* Exibição em cards para mobile */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {filteredCollections.map((collection) => (
+              <AdminItemCard
+                key={collection.id}
+                title={collection.name}
+                content={
+                  <div className="flex items-center mt-2">
+                    <div 
+                      className="h-12 w-12 rounded-lg border border-gray-200 flex-shrink-0 shadow-sm mr-3"
+                      style={{ backgroundColor: collection.representativeColor || '#CCCCCC' }}
+                    />
+                    <div className="text-sm">
+                      <div className="font-mono text-slate-500 mb-1">{collection.representativeColor}</div>
+                      {collection.description && (
+                        <div className="text-gray-600 line-clamp-2">{collection.description}</div>
+                      )}
+                    </div>
+                  </div>
+                }
+                onEdit={() => handleEdit(collection)}
+                onDelete={() => handleDelete(collection.id)}
+              />
+            ))}
+            
+            {filteredCollections.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <div className="rounded-full bg-slate-100 p-3 mb-4 inline-flex">
+                  <FolderOpen className="h-6 w-6 text-slate-400" />
+                </div>
+                <p className="text-gray-500">
+                  {searchTerm
+                    ? "Nenhuma coleção encontrada para esta busca."
+                    : "Nenhuma coleção cadastrada."}
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      
+      {/* Contador de resultados */}
+      {!isEditing && filteredCollections.length > 0 && (
+        <div className="mt-4 text-sm text-gray-500">
+          {filteredCollections.length} {filteredCollections.length === 1 ? 'coleção encontrada' : 'coleções encontradas'}
+          {searchTerm && ` para "${searchTerm}"`}
+        </div>
+      )}
+    </AdminPageLayout>
   );
 }

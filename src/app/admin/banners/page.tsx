@@ -1,317 +1,171 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Banner } from '@/data/types';
-import { useToast } from '@/components/ToastProvider';
-import { bannerService } from '@/services/localDataService';
+import { bannerService } from '@/services/supabaseService';
+import AdminPageLayout from '@/components/AdminPageLayout';
+import { toast } from 'react-toastify';
+import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 
 export default function AdminBannersPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentBanner, setCurrentBanner] = useState<Banner | null>(null);
-  const [isActive, setIsActive] = useState(true);
-  const [order, setOrder] = useState(0);
-  const [imageUrl, setImageUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const router = useRouter();
-  const { showToast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carregar banners ao iniciar
   useEffect(() => {
     loadBanners();
   }, []);
 
-  // Carregar banners do serviço local
+  // Mapeamento dos dados do banco de dados para o formato da interface
+  const mapBannerData = (dbBanner: any): Banner => {
+    return {
+      id: dbBanner.id,
+      imageUrl: dbBanner.imageurl || dbBanner.imageUrl,
+      isActive: dbBanner.isactive !== undefined ? dbBanner.isactive : dbBanner.isActive,
+      order: dbBanner.order,
+      createdAt: dbBanner.createdat || dbBanner.createdAt,
+      updatedAt: dbBanner.updatedat || dbBanner.updatedAt
+    };
+  };
+
+  // Carregar banners do serviço
   const loadBanners = async () => {
     try {
       setLoading(true);
       const data = await bannerService.getAll();
-      setBanners(data);
+      // Mapear os dados para o formato esperado pela interface
+      const mappedBanners = data.map(mapBannerData);
+      setBanners(mappedBanners);
     } catch (error) {
       console.error('Erro ao carregar banners:', error);
-      showToast('Erro ao carregar banners', 'error');
+      toast.error('Erro ao carregar banners');
     } finally {
       setLoading(false);
     }
   };
 
-  // Limpar formulário
-  const resetForm = () => {
-    setCurrentBanner(null);
-    setIsActive(true);
-    setOrder(0);
-    setImageUrl('');
-    setSelectedFile(null);
-    setPreviewUrl('');
-  };
-
-  // Editar banner existente
-  const editBanner = (banner: Banner) => {
-    setCurrentBanner(banner);
-    setIsActive(banner.isActive);
-    setOrder(banner.order || 0);
-    setImageUrl(banner.imageUrl);
-    setPreviewUrl(banner.imageUrl);
-  };
-
-  // Deletar banner
-  const handleDelete = async (banner: Banner) => {
-    if (!banner.id) return;
-    
-    if (window.confirm(`Tem certeza que deseja excluir este banner?`)) {
-      try {
-        const success = await bannerService.delete(banner.id);
-        
-        if (success) {
-          showToast('Banner excluído com sucesso!', 'success');
-          loadBanners();
-          resetForm();
-        } else {
-          showToast('Erro ao excluir banner', 'error');
-        }
-      } catch (error) {
-        console.error('Erro ao excluir banner:', error);
-        showToast('Erro ao excluir banner', 'error');
-      }
-    }
-  };
-
-  // Manipular seleção de arquivo
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setSelectedFile(file);
-    
-    // Criar URL para preview
-    const fileUrl = URL.createObjectURL(file);
-    setPreviewUrl(fileUrl);
-  };
-
-  // Submeter formulário
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!previewUrl && !imageUrl) {
-      showToast('É necessário selecionar uma imagem', 'error');
-      return;
-    }
-
+  // Alternar status do banner (ativo/inativo)
+  const toggleBannerStatus = async (banner: Banner) => {
     try {
-      setSubmitting(true);
+      const updatedBanner = await bannerService.update(banner.id, {
+        isActive: !banner.isActive
+      });
       
-      // Criar objeto do banner
-      const bannerData: Omit<Banner, 'id'> = {
-        imageUrl: selectedFile ? previewUrl : imageUrl,
-        isActive,
-        order: Number(order) || 0
-      };
-      
-      // Atualizar ou criar banner
-      if (currentBanner?.id) {
-        const updatedBanner = await bannerService.update(currentBanner.id, bannerData);
-        if (updatedBanner) {
-          showToast('Banner atualizado com sucesso!', 'success');
-        } else {
-          showToast('Erro ao atualizar banner', 'error');
-        }
-      } else {
-        const newBanner = await bannerService.add(bannerData);
-        if (newBanner) {
-          showToast('Banner criado com sucesso!', 'success');
-        } else {
-          showToast('Erro ao criar banner', 'error');
-        }
+      if (updatedBanner) {
+        // Atualizar o estado local com o banner atualizado
+        setBanners(prev => 
+          prev.map(b => b.id === banner.id ? { ...b, isActive: !b.isActive } : b)
+        );
+        
+        toast.success(`Banner ${banner.isActive ? 'desativado' : 'ativado'} com sucesso!`);
       }
-      
-      // Recarregar lista e limpar formulário
-      loadBanners();
-      resetForm();
     } catch (error) {
-      console.error('Erro ao salvar banner:', error);
-      showToast('Erro ao salvar banner', 'error');
-    } finally {
-      setSubmitting(false);
+      console.error('Erro ao atualizar status do banner:', error);
+      toast.error('Falha ao atualizar o status do banner');
     }
   };
+
+  if (loading) {
+    return (
+      <AdminPageLayout title="Gerenciamento de Banners">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+        </div>
+      </AdminPageLayout>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 font-inter">Gerenciamento de Banners</h1>
-        <Link 
-          href="/admin"
-          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-md transition duration-300 font-inter"
+    <AdminPageLayout title="Gerenciamento de Banners">
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-800">Lista de Banners</h2>
+        <Link
+          href="/admin/banners/novo"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center text-sm"
         >
-          Voltar ao painel
+          <Plus size={16} className="mr-1" />
+          Novo Banner
         </Link>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Formulário */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4 font-inter">
-            {currentBanner ? 'Editar Banner' : 'Adicionar Novo Banner'}
-          </h2>
-          
-          <form onSubmit={handleSubmit}>
-            {/* Imagem Preview */}
-            <div className="mb-6">
-              <label className="block text-gray-700 font-medium mb-2 font-inter">
-                Imagem do Banner
-              </label>
-              {previewUrl ? (
-                <div className="relative h-48 mb-2 rounded overflow-hidden">
-                  <Image
-                    src={previewUrl}
-                    alt="Preview do banner"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="h-48 bg-gray-200 flex items-center justify-center rounded mb-2">
-                  <span className="text-gray-500 font-inter">Nenhuma imagem selecionada</span>
-                </div>
-              )}
-              
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                ref={fileInputRef}
-                className="hidden"
-              />
-              
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-inter mt-2"
-              >
-                Selecionar Imagem
-              </button>
-            </div>
-            
-            {/* Status e Ordem */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Status</label>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="isActive" className="ml-2 text-gray-700">
-                    Banner Ativo
-                  </label>
-                </div>
-              </div>
-              
-              <div>
-                <label htmlFor="order" className="block text-gray-700 font-medium mb-2 font-inter">
-                  Ordem de Exibição
-                </label>
-                <input
-                  type="number"
-                  id="order"
-                  min="0"
-                  value={order}
-                  onChange={(e) => setOrder(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-inter"
+      
+      {banners.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Nenhum banner encontrado</h2>
+          <p className="text-gray-500 mb-6">
+            Comece adicionando um novo banner para exibir em seu site.
+          </p>
+          <Link 
+            href="/admin/banners/novo" 
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center"
+          >
+            <Plus size={16} className="mr-1" />
+            Adicionar Banner
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {banners.map(banner => (
+            <div key={banner.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="relative h-48">
+                <Image
+                  src={banner.imageUrl}
+                  alt="Banner"
+                  fill
+                  className="object-contain"
                 />
               </div>
-            </div>
-            
-            {/* Botões de Ação */}
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition duration-300 font-inter"
-              >
-                Cancelar
-              </button>
               
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-300 font-inter disabled:opacity-70"
-              >
-                {submitting ? 'Salvando...' : 'Salvar Banner'}
-              </button>
-            </div>
-          </form>
-        </div>
-        
-        {/* Lista de Banners */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4 font-inter">Banners Existentes</h2>
-          
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
-            </div>
-          ) : banners.length === 0 ? (
-            <div className="bg-white p-6 rounded-lg shadow-md text-center text-gray-500 font-inter">
-              Nenhum banner cadastrado.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {banners.map((banner) => (
-                <div key={banner.id} className="bg-white p-4 rounded-lg shadow-md">
-                  <div className="flex flex-col sm:flex-row items-center">
-                    <div className="relative h-24 w-36 flex-shrink-0 mb-4 sm:mb-0 sm:mr-4">
-                      <Image
-                        src={banner.imageUrl}
-                        alt="Banner"
-                        fill
-                        className="object-cover rounded"
-                      />
-                    </div>
-                    
-                    <div className="flex-grow">
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        <span className={`px-2 py-0.5 text-xs rounded ${banner.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} font-inter`}>
-                          {banner.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
-                        <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-800 font-inter">
-                          Ordem: {banner.order || 0}
-                        </span>
-                      </div>
-                      
-                      <div className="flex justify-end mt-2 space-x-2">
-                        <button
-                          onClick={() => editBanner(banner)}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition duration-300 font-inter"
-                        >
-                          Editar
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDelete(banner)}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition duration-300 font-inter"
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
+              <div className="p-4 border-t">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <span className="text-sm text-gray-500">Ordem: {banner.order || 0}</span>
                   </div>
+                  <span 
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      banner.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {banner.isActive ? 'Ativo' : 'Inativo'}
+                  </span>
                 </div>
-              ))}
+                
+                <div className="flex justify-between">
+                  <div className="flex space-x-2">
+                    <Link
+                      href={`/admin/banners/${banner.id}`}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Editar"
+                    >
+                      <Edit size={18} />
+                    </Link>
+                    <Link
+                      href={`/admin/banners/excluir/${banner.id}`}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      title="Excluir"
+                    >
+                      <Trash2 size={18} />
+                    </Link>
+                  </div>
+                  
+                  <button
+                    onClick={() => toggleBannerStatus(banner)}
+                    className={`p-2 rounded ${
+                      banner.isActive 
+                        ? 'text-gray-600 hover:bg-gray-50' 
+                        : 'text-gray-600 hover:bg-green-50'
+                    }`}
+                    title={banner.isActive ? 'Desativar' : 'Ativar'}
+                  >
+                    <Eye size={18} />
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+    </AdminPageLayout>
   );
 } 

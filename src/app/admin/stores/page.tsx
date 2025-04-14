@@ -1,19 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useToast } from '@/components/ToastProvider';
 import { Store } from '@/data/types';
+import { useToast } from '@/components/ToastProvider';
 import { storeService } from '@/services/localDataService';
+import AdminPageLayout from '@/components/AdminPageLayout';
+import AdminFormContainer from '@/components/AdminFormContainer';
+import FormField from '@/components/FormField';
+import AdminItemCard from '@/components/AdminItemCard';
+import AdminTable from '@/components/AdminTable';
 
 export default function AdminStoresPage() {
-  const router = useRouter();
   const { showToast } = useToast();
   const [storesList, setStoresList] = useState<Store[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentStore, setCurrentStore] = useState<Store | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   
   // Dados do formulário
   const [name, setName] = useState('');
@@ -96,6 +99,7 @@ export default function AdminStoresPage() {
     e.preventDefault();
     
     try {
+      setSubmitting(true);
       const storeData = {
         name,
         city,
@@ -136,8 +140,41 @@ export default function AdminStoresPage() {
     } catch (error) {
       console.error('Erro ao salvar loja:', error);
       showToast('Ocorreu um erro inesperado. Tente novamente.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
+  
+  // Configuração das colunas da tabela
+  const columns = [
+    {
+      header: 'Nome',
+      key: 'name'
+    },
+    {
+      header: 'Cidade',
+      key: 'city'
+    },
+    {
+      header: 'Telefone',
+      key: 'phone'
+    },
+    {
+      header: 'Horário',
+      key: 'hours'
+    },
+    {
+      header: 'Status',
+      key: 'isActive',
+      render: (value: boolean) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          value !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {value !== false ? 'Ativa' : 'Inativa'}
+        </span>
+      )
+    }
+  ];
   
   // Renderização da página
   if (isLoading) {
@@ -149,182 +186,118 @@ export default function AdminStoresPage() {
   }
   
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <Link href="/admin" className="text-blue-700 hover:underline mb-2 inline-block">
-            &larr; Voltar para o Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-800">Gerenciar Lojas</h1>
-        </div>
-        
-        {!isEditing && (
-          <button
-            onClick={handleAddNew}
-            className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-md transition duration-300"
-          >
-            Adicionar Nova Loja
-          </button>
-        )}
-      </div>
-      
+    <AdminPageLayout 
+      title="Gerenciar Lojas"
+      actionButton={{
+        label: "Adicionar Nova Loja",
+        onClick: handleAddNew,
+        show: !isEditing
+      }}
+    >
       {isEditing ? (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {currentStore ? 'Editar Loja' : 'Nova Loja'}
-          </h2>
-          
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="name">
-                  Nome da Loja *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="phone">
-                  Telefone *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="city">
-                  Cidade *
-                </label>
-                <input
-                  type="text"
-                  id="city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-700 mb-2" htmlFor="hours">
-                  Horário de Funcionamento
-                </label>
-                <input
-                  type="text"
-                  id="hours"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Segunda a Sábado: 8h às 18h"
-                />
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={() => setIsActive(!isActive)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-gray-700">Loja em funcionamento</span>
-                </label>
-              </div>
-            </div>
+        <AdminFormContainer
+          title={currentStore ? 'Editar Loja' : 'Nova Loja'}
+          onCancel={handleCancel}
+          onSubmit={handleSubmit}
+          submitLabel={currentStore ? 'Atualizar' : 'Salvar'}
+          isSubmitting={submitting}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <FormField
+              type="text"
+              id="name"
+              label="Nome da Loja"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
             
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition duration-300"
-              >
-                Cancelar
-              </button>
-              
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-md transition duration-300"
-              >
-                {currentStore ? 'Atualizar' : 'Salvar'}
-              </button>
-            </div>
-          </form>
-        </div>
+            <FormField
+              type="tel"
+              id="phone"
+              label="Telefone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+            
+            <FormField
+              type="text"
+              id="city"
+              label="Cidade"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              required
+            />
+            
+            <FormField
+              type="text"
+              id="hours"
+              label="Horário de Funcionamento"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              placeholder="Segunda a Sábado: 8h às 18h"
+            />
+            
+            <FormField
+              type="checkbox"
+              id="isActive"
+              label="Loja em funcionamento"
+              checked={isActive}
+              onChange={() => setIsActive(!isActive)}
+              gridSpan="full"
+            />
+          </div>
+        </AdminFormContainer>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {storesList.map((store) => (
-            <div key={store.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-5">
-                <h3 className="text-lg font-semibold text-gray-800">{store.name}</h3>
-                <p className="text-sm text-gray-600 mt-2">{store.city}</p>
-                
-                {store.phone && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">Telefone:</span> {store.phone}
-                  </p>
-                )}
-                
-                {store.hours && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">Horário:</span> {store.hours}
-                  </p>
-                )}
-                
-                <div className="mt-3">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    store.isActive !== false
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {store.isActive !== false ? 'Em funcionamento' : 'Fechada'}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between mt-4 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => handleEdit(store)}
-                    className="inline-flex items-center px-3 py-1.5 border border-blue-700 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-100 focus:outline-none"
-                  >
-                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Editar
-                  </button>
-                  
-                  <button
-                    onClick={() => handleDelete(store.id)}
-                    className="inline-flex items-center px-3 py-1.5 border border-red-600 text-sm font-medium rounded-md text-red-600 bg-white hover:bg-red-50 focus:outline-none"
-                  >
-                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <>
+          {/* Exibição em tabela para desktop */}
+          <AdminTable
+            columns={columns}
+            data={storesList}
+            actions={{
+              onEdit: handleEdit,
+              onDelete: (store) => handleDelete(store.id)
+            }}
+            emptyText="Nenhuma loja cadastrada."
+          />
           
-          {storesList.length === 0 && (
-            <div className="col-span-full text-center py-8">
-              <p className="text-gray-500">Nenhuma loja cadastrada.</p>
-            </div>
-          )}
-        </div>
+          {/* Exibição em cards para mobile */}
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {storesList.map((store) => (
+              <AdminItemCard
+                key={store.id}
+                title={store.name}
+                subtitle={`Cidade: ${store.city}`}
+                content={
+                  <>
+                    <p className="text-lg text-gray-600 mb-1">
+                      <span className="font-medium">Telefone:</span> {store.phone}
+                    </p>
+                    {store.hours && (
+                      <p className="text-lg text-gray-600">
+                        <span className="font-medium">Horário:</span> {store.hours}
+                      </p>
+                    )}
+                  </>
+                }
+                status={{
+                  label: store.isActive !== false ? 'Ativa' : 'Inativa',
+                  isActive: store.isActive !== false
+                }}
+                onEdit={() => handleEdit(store)}
+                onDelete={() => handleDelete(store.id)}
+              />
+            ))}
+            
+            {storesList.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <p className="text-gray-500">Nenhuma loja cadastrada.</p>
+              </div>
+            )}
+          </div>
+        </>
       )}
-    </div>
+    </AdminPageLayout>
   );
 }

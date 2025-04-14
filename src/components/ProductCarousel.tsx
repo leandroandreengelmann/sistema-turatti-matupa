@@ -1,18 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Product } from '@/data/types';
 import ProductCard from './ProductCard';
 
 interface ProductCarouselProps {
   products: Product[];
   title: string;
+  autoplaySpeed?: number; // Tempo em ms para mudar slides automaticamente
 }
 
-export default function ProductCarousel({ products, title }: ProductCarouselProps) {
+export default function ProductCarousel({ 
+  products, 
+  title, 
+  autoplaySpeed = 5000 // Valor padrão de 5 segundos
+}: ProductCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [touchStartX, setTouchStartX] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   // Update items per page based on screen size
   useEffect(() => {
@@ -40,28 +49,81 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const totalPages = Math.ceil(products.length / itemsPerPage);
+  // Calcular o número total de páginas com base nos produtos reais
+  const totalPages = Math.max(1, Math.ceil(products.length / itemsPerPage));
 
   const handlePrev = useCallback(() => {
+    if (isTransitioning) return;
+    
+    setIsTransitioning(true);
     setCurrentIndex((prevIndex) => 
       prevIndex === 0 ? totalPages - 1 : prevIndex - 1
     );
-  }, [totalPages]);
+    
+    // Reset transition flag after animation completes
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 300);
+  }, [totalPages, isTransitioning]);
 
   const handleNext = useCallback(() => {
+    if (isTransitioning) return;
+    
+    setIsTransitioning(true);
     setCurrentIndex((prevIndex) => 
       prevIndex === totalPages - 1 ? 0 : prevIndex + 1
     );
-  }, [totalPages]);
+    
+    // Reset transition flag after animation completes
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 300);
+  }, [totalPages, isTransitioning]);
+
+  // Configura o autoplay
+  useEffect(() => {
+    // Funções para iniciar e parar o autoplay
+    const startAutoplay = () => {
+      if (autoplayTimerRef.current) {
+        clearInterval(autoplayTimerRef.current);
+      }
+      
+      autoplayTimerRef.current = setInterval(() => {
+        if (!isPaused) {
+          handleNext();
+        }
+      }, autoplaySpeed);
+    };
+
+    const stopAutoplay = () => {
+      if (autoplayTimerRef.current) {
+        clearInterval(autoplayTimerRef.current);
+        autoplayTimerRef.current = null;
+      }
+    };
+
+    // Somente iniciar autoplay se houver mais de uma página
+    if (totalPages > 1) {
+      startAutoplay();
+    }
+
+    // Limpar quando o componente for desmontado
+    return () => stopAutoplay();
+  }, [handleNext, autoplaySpeed, isPaused, totalPages]);
 
   // Mobile touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
+    // Pausa temporariamente o autoplay quando o usuário inicia o toque
+    setIsPaused(true);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX - touchEndX;
+    
+    // Prevent multiple transitions
+    if (isTransitioning) return;
     
     // Swipe left (next)
     if (diff > 50) {
@@ -71,6 +133,19 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
     else if (diff < -50) {
       handlePrev();
     }
+
+    // Retoma o autoplay após o toque
+    setIsPaused(false);
+  };
+
+  // Pausar o autoplay quando o cursor estiver sobre o carrossel
+  const handleMouseEnter = () => {
+    setIsPaused(true);
+  };
+
+  // Retomar o autoplay quando o cursor sair do carrossel
+  const handleMouseLeave = () => {
+    setIsPaused(false);
   };
 
   // Set up keyboard navigation
@@ -87,10 +162,8 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrev, handleNext]);
 
-  const visibleProducts = products.slice(
-    currentIndex * itemsPerPage,
-    currentIndex * itemsPerPage + itemsPerPage
-  );
+  // Calculate translateX value based on current index and items per page
+  const translateValue = -currentIndex * (100 / totalPages);
 
   return (
     <div className="py-8 bg-gray-50">
@@ -108,6 +181,7 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
               onClick={handlePrev}
               className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition duration-300"
               aria-label="Anterior"
+              disabled={isTransitioning || totalPages <= 1}
             >
               <svg 
                 className="w-5 h-5" 
@@ -129,6 +203,7 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
               onClick={handleNext}
               className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition duration-300"
               aria-label="Próximo"
+              disabled={isTransitioning || totalPages <= 1}
             >
               <svg 
                 className="w-5 h-5" 
@@ -148,14 +223,42 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
           </div>
         </div>
         
-        <div 
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          {visibleProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+        <div className="overflow-hidden relative">
+          <div 
+            ref={carouselRef}
+            className="flex transition-transform duration-300 ease-in-out"
+            style={{ 
+              transform: `translateX(${translateValue}%)`,
+              width: `${totalPages * 100}%` 
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            {totalPages > 0 && Array.from({ length: totalPages }).map((_, pageIndex) => {
+              const startIdx = pageIndex * itemsPerPage;
+              const pageProducts = products.slice(startIdx, startIdx + itemsPerPage);
+              
+              return (
+                <div 
+                  key={`page-${pageIndex}`}
+                  className="flex"
+                  style={{ width: `${100 / totalPages}%` }}
+                >
+                  {pageProducts.map(product => (
+                    <div 
+                      key={product.id}
+                      className="px-3"
+                      style={{ width: `${100 / itemsPerPage}%` }}
+                    >
+                      <ProductCard product={product} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
         
         {/* Pagination dots */}
@@ -164,13 +267,22 @@ export default function ProductCarousel({ products, title }: ProductCarouselProp
             {Array.from({ length: totalPages }).map((_, index) => (
               <button
                 key={index}
-                onClick={() => setCurrentIndex(index)}
+                onClick={() => {
+                  if (!isTransitioning) {
+                    setIsTransitioning(true);
+                    setCurrentIndex(index);
+                    setTimeout(() => {
+                      setIsTransitioning(false);
+                    }, 300);
+                  }
+                }}
                 className={`w-3 h-3 rounded-full transition-colors ${
                   currentIndex === index 
                     ? 'bg-blue-600' 
                     : 'bg-gray-300 hover:bg-gray-400'
                 }`}
                 aria-label={`Ir para página ${index + 1}`}
+                disabled={isTransitioning}
               />
             ))}
           </div>

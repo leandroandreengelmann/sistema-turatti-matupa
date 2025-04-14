@@ -1,93 +1,201 @@
 import Banner from '@/components/Banner';
 import ProductCarousel from '@/components/ProductCarousel';
-import ColorSection from '@/components/ColorSection';
-import { productService, colorCollectionService, bannerService } from '@/services/localDataService';
+import HomeColorSection from '@/components/HomeColorSection';
+import { productService } from '@/services/productService';
+import { bannerService } from '@/services/bannerService';
 import { TruckIcon, ShieldCheckIcon, HeadphonesIcon } from 'lucide-react';
 import ContactSellerSection from '@/components/ContactSellerSection';
+import { Product } from '@/data/types';
+
+// Função para normalizar e preparar produtos promocionais
+function normalizePromotionProduct(product: Product) {
+  // Se já tiver campos de promoção definidos e originalprice for maior que price,
+  // assumimos que os valores já estão corretos
+  if (
+    product.ispromotion && 
+    product.originalprice && 
+    product.originalprice > product.price
+  ) {
+    // Apenas garantir que temos as propriedades em camelCase também
+    return {
+      ...product,
+      isPromotion: true,
+      promoPrice: product.price,
+      // Calcular o desconto com base nos preços atuais
+      discountPercentage: Math.round(
+        ((product.originalprice - product.price) / product.originalprice) * 100
+      )
+    };
+  }
+  
+  // Caso esteja marcado como promoção mas não tenha os preços configurados corretamente
+  if (product.ispromotion || product.ismonthpromotion) {
+    // Guardar o preço original
+    const originalPrice = product.originalprice || product.price;
+    
+    // Calcular preço promocional (20% de desconto como padrão)
+    // A menos que já tenha sido especificado um desconto
+    const discountPercentage = product.discountPercentage || 20;
+    const discountMultiplier = (100 - discountPercentage) / 100;
+    const promoPrice = Math.round(originalPrice * discountMultiplier);
+    
+    return {
+      ...product,
+      isPromotion: true,
+      ispromotion: true,
+      price: originalPrice,
+      promoPrice: promoPrice,
+      originalprice: originalPrice,
+      discountPercentage: discountPercentage
+    };
+  }
+  
+  // Se não for promoção, apenas retornar o produto como está
+  return product;
+}
 
 async function getData() {
   try {
     // Buscar dados em paralelo para melhor performance e tolerância a falhas
     const [
-      promotionProductsPromise,
+      monthPromotionsPromise,
       featuredProductsPromise, 
-      colorCollectionsPromise,
-      bannersPromise
+      bannersPromise,
+      novidadesPromise
     ] = await Promise.allSettled([
-      productService.getPromotions(),
-      productService.getNonPromotions(),
-      colorCollectionService.getAll(),
-      bannerService.getActive()
+      productService.getMonthPromotions(),
+      productService.getFeatured(),
+      fetchBanners().catch(error => {
+        console.error('Erro ao buscar banners:', error);
+        return [];
+      }),
+      productService.getNovidades()
     ]);
     
     // Extrair resultados com fallbacks para evitar quebras
-    const promotionProducts = promotionProductsPromise.status === 'fulfilled' 
-      ? promotionProductsPromise.value 
+    const monthPromotions = monthPromotionsPromise.status === 'fulfilled' 
+      ? monthPromotionsPromise.value 
       : [];
       
     const featuredProducts = featuredProductsPromise.status === 'fulfilled' 
       ? featuredProductsPromise.value 
       : [];
       
-    const colorCollections = colorCollectionsPromise.status === 'fulfilled' 
-      ? colorCollectionsPromise.value 
-      : [];
-      
     const banners = bannersPromise.status === 'fulfilled'
       ? bannersPromise.value
       : [];
+      
+    const novidades = novidadesPromise.status === 'fulfilled'
+      ? novidadesPromise.value
+      : [];
     
     return {
-      promotionProducts,
+      monthPromotions,
       featuredProducts,
-      colorCollections,
-      banners
+      banners,
+      novidades
     };
   } catch (error) {
     console.error('Erro ao buscar dados da página inicial:', error);
     // Retornar valores padrão para evitar quebrar a página
     return {
-      promotionProducts: [],
+      monthPromotions: [],
       featuredProducts: [],
-      colorCollections: [],
-      banners: []
+      banners: [],
+      novidades: []
     };
   }
 }
 
+// Função helper para buscar banners com tratamento de erros e timeout
+async function fetchBanners() {
+  try {
+    // Implementar timeout para evitar que a página fique esperando indefinidamente
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const result = await bannerService.getActive();
+    clearTimeout(timeoutId);
+    
+    return result;
+  } catch (error) {
+    console.error('Erro ao buscar banners:', error);
+    return []; // Retorna array vazio em caso de erro
+  }
+}
+
 export default async function Home() {
-  // Buscar dados locais
-  const { promotionProducts, featuredProducts, colorCollections, banners } = await getData();
+  // Buscar dados do Supabase
+  const { monthPromotions, featuredProducts, banners, novidades } = await getData();
   
-  // Obter o primeiro banner ativo, se houver algum
-  const firstBanner = banners.length > 0 ? banners[0] : undefined;
+  // Processar promoções do mês 
+  const processedMonthPromotions = monthPromotions.map(product => 
+    normalizePromotionProduct({
+      ...product,
+      ismonthpromotion: true // Garantir que esteja marcado como promoção do mês
+    })
+  );
+  
+  // Processar produtos em destaque
+  const processedFeaturedProducts = featuredProducts.map(product => {
+    // Se o produto estiver em promoção, normalizar os dados de promoção
+    if (product.ispromotion) {
+      return normalizePromotionProduct(product);
+    }
+    // Caso contrário, manter dados originais
+    return product;
+  });
+  
+  // Processar produtos novidades
+  const processedNovidades = novidades.map(product => {
+    // Se o produto estiver em promoção, normalizar os dados de promoção
+    if (product.ispromotion) {
+      return normalizePromotionProduct(product);
+    }
+    // Adicionar flag de novo produto
+    return {
+      ...product,
+      isnew: true // Garantir que esteja marcado como novo
+    };
+  });
   
   return (
     <div className="min-h-screen">
-      {/* Main Banner */}
-      <Banner banner={firstBanner} />
+      {/* Banner Carousel com todos os banners ativos */}
+      <Banner banners={banners} height={480} />
       
       {/* Botão de contato com vendedor */}
       <ContactSellerSection />
       
-      {/* Promotion Products Carousel - mostrar primeiro */}
-      {promotionProducts.length > 0 && (
+      {/* Month Promotions Carousel - mostrar primeiro */}
+      {processedMonthPromotions.length > 0 && (
         <ProductCarousel 
-          products={promotionProducts} 
+          products={processedMonthPromotions} 
           title="Promoções do Mês" 
+          autoplaySpeed={6000}
         />
       )}
+
+      {/* Catálogo de Cores 2025 */}
+      <HomeColorSection />
       
       {/* Featured Products Carousel */}
-      {featuredProducts.length > 0 && (
+      {processedFeaturedProducts.length > 0 && (
         <ProductCarousel 
-          products={featuredProducts} 
+          products={processedFeaturedProducts} 
           title="Produtos em Destaque" 
+          autoplaySpeed={8000}
         />
       )}
       
-      {/* Colors Section */}
-      <ColorSection collections={colorCollections} />
+      {/* Novidades Products Carousel */}
+      {processedNovidades.length > 0 && (
+        <ProductCarousel 
+          products={processedNovidades} 
+          title="Novidades" 
+          autoplaySpeed={7000}
+        />
+      )}
 
       {/* Informações adicionais */}
       <section className="bg-gray-50 py-10 lg:py-16">
